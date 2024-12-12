@@ -3,14 +3,12 @@ import json5
 import re
 from PyPDF2 import PdfFileReader
 import faiss
-from sentence_transformers import SentenceTransformer
 import numpy as np
 from qwen_agent.tools.base import BaseTool, register_tool
 from openai.embeddings_utils import get_embedding
 
-# Initialize SentenceTransformer and FAISS index
-model = SentenceTransformer("paraphrase-mpnet-base-v2")
-faiss_index = faiss.IndexFlatL2(768)  # Dimension of the embeddings
+# Initialize FAISS index
+faiss_index = faiss.IndexFlatL2(1536)  # OpenAI embeddings have 1536 dimensions
 
 def extract_text_from_pdf(pdf_path):
     """Extract text from a PDF file."""
@@ -26,7 +24,7 @@ def extract_text_from_pdf(pdf_path):
     return extracted_text
 
 def create_embeddings_and_store(pdf_text):
-    """Create embeddings for extracted text and store in FAISS."""
+    """Create embeddings for extracted text using OpenAI and store in FAISS."""
     # Split text into smaller chunks
     text_chunks = pdf_text.split("\n")
     embeddings = []
@@ -34,7 +32,7 @@ def create_embeddings_and_store(pdf_text):
 
     for chunk in text_chunks:
         if chunk.strip():
-            embedding = model.encode(chunk)
+            embedding = get_embedding(chunk, engine="text-embedding-ada-002")
             embeddings.append(embedding)
             chunk_texts.append(chunk)
 
@@ -47,7 +45,8 @@ def create_embeddings_and_store(pdf_text):
 
 def search_in_embeddings(query, chunk_texts, k=5):
     """Search FAISS index for relevant chunks based on a query."""
-    query_embedding = model.encode([query]).astype('float32')
+    query_embedding = get_embedding(query, engine="text-embedding-ada-002")
+    query_embedding = np.array([query_embedding]).astype('float32')
     distances, indices = faiss_index.search(query_embedding, k)
 
     results = []
